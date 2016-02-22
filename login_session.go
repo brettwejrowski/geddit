@@ -22,6 +22,7 @@ import (
 type LoginSession struct {
 	username  string
 	password  string
+	baseurl   string
 	useragent string
 	cookie    *http.Cookie
 	modhash   string `json:"modhash"`
@@ -30,15 +31,16 @@ type LoginSession struct {
 
 // NewLoginSession creates a new session for those who want to log into a
 // reddit account.
-func NewLoginSession(username, password, useragent string) (*LoginSession, error) {
+func NewLoginSession(username, password, useragent, baseurl string) (*LoginSession, error) {
 	session := &LoginSession{
 		username:  username,
 		password:  password,
 		useragent: useragent,
-		Session:   Session{useragent},
+		baseurl: baseurl,
+		Session:   Session{useragent, baseurl},
 	}
 
-	loginURL := fmt.Sprintf("https://www.reddit.com/api/login/%s", username)
+	loginURL := fmt.Sprintf(baseurl+"/api/login/%s", username)
 	postValues := url.Values{
 		"user":     {username},
 		"passwd":   {password},
@@ -92,7 +94,7 @@ func NewLoginSession(username, password, useragent string) (*LoginSession, error
 // Clear clears all session cookies and updates the current session with a new one.
 func (s LoginSession) Clear() error {
 	req := &request{
-		url: "https://www.reddit.com/api/clear_sessions",
+		url: s.baseurl+"/api/clear_sessions",
 		values: &url.Values{
 			"curpass": {s.password},
 			"uh":      {s.modhash},
@@ -117,7 +119,7 @@ func (s LoginSession) Frontpage(sort PopularitySort, params ListingOptions) ([]*
 		return nil, err
 	}
 
-	redditUrl := fmt.Sprintf("https://www.reddit.com/%s/.json?%s", sort, v.Encode())
+	redditUrl := fmt.Sprintf(s.baseurl+"/%s/.json?%s", sort, v.Encode())
 
 	req := request{
 		url:       redditUrl,
@@ -153,7 +155,7 @@ func (s LoginSession) Frontpage(sort PopularitySort, params ListingOptions) ([]*
 // Me returns an up-to-date redditor object of the logged-in user.
 func (s LoginSession) Me() (*Redditor, error) {
 	req := &request{
-		url:       "https://www.reddit.com/api/me.json",
+		url:       s.baseurl+"/api/me.json",
 		cookie:    s.cookie,
 		useragent: s.useragent,
 	}
@@ -185,7 +187,7 @@ func (s LoginSession) Submit(ns *NewSubmission) error {
 	}
 
 	req := &request{
-		url: "https://www.reddit.com/api/submit",
+		url: s.baseurl+"/api/submit",
 		values: &url.Values{
 			"title":       {ns.Title},
 			"url":         {ns.Content},
@@ -216,7 +218,7 @@ func (s LoginSession) Submit(ns *NewSubmission) error {
 // Vote either votes or rescinds a vote for a Submission or Comment.
 func (s LoginSession) Vote(v Voter, vote Vote) error {
 	req := &request{
-		url: "https://www.reddit.com/api/vote",
+		url: s.baseurl+"/api/vote",
 		values: &url.Values{
 			"id":  {v.voteID()},
 			"dir": {string(vote)},
@@ -238,7 +240,7 @@ func (s LoginSession) Vote(v Voter, vote Vote) error {
 // Reply posts a comment as a response to a Submission or Comment.
 func (s LoginSession) Reply(r Replier, comment string) error {
 	req := &request{
-		url: "https://www.reddit.com/api/comment",
+		url: s.baseurl+"/api/comment",
 		values: &url.Values{
 			"thing_id": {r.replyID()},
 			"text":     {comment},
@@ -263,7 +265,7 @@ func (s LoginSession) Reply(r Replier, comment string) error {
 // Delete deletes a Submission or Comment.
 func (s LoginSession) Delete(d Deleter) error {
 	req := &request{
-		url: "https://www.reddit.com/api/del",
+		url: s.baseurl+"/api/del",
 		values: &url.Values{
 			"id": {d.deleteID()},
 			"uh": {s.modhash},
@@ -287,7 +289,7 @@ func (s LoginSession) Delete(d Deleter) error {
 // NeedsCaptcha returns true if captcha is required, false if it isn't
 func (s LoginSession) NeedsCaptcha() (bool, error) {
 	req := &request{
-		url:       "https://www.reddit.com/api/needs_captcha.json",
+		url:       s.baseurl+"/api/needs_captcha.json",
 		cookie:    s.cookie,
 		useragent: s.useragent,
 	}
@@ -310,7 +312,7 @@ func (s LoginSession) NeedsCaptcha() (bool, error) {
 // NewCaptchaIden gets a new captcha iden from reddit
 func (s LoginSession) NewCaptchaIden() (string, error) {
 	req := &request{
-		url: "https://www.reddit.com/api/new_captcha",
+		url: s.baseurl+"/api/new_captcha",
 		values: &url.Values{
 			"api_type": {"json"},
 		},
@@ -350,7 +352,7 @@ func (s LoginSession) Listing(username, listing string, sort PopularitySort, aft
 	if after != "" {
 		values.Set("after", after)
 	}
-	url := fmt.Sprintf("https://www.reddit.com/user/%s/%s.json?%s", username, listing, values.Encode())
+	url := fmt.Sprintf(s.baseurl+"/user/%s/%s.json?%s", username, listing, values.Encode())
 	req := &request{
 		url:       url,
 		cookie:    s.cookie,
